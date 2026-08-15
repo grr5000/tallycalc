@@ -21,20 +21,32 @@ jobs:
     name: Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Required files present
         run: |
           set -e
-          for f in src/index.html src/manifest.webmanifest src/sw.js \
+          for f in src/index.html src/manifest.webmanifest src/sw.js src/CNAME \
                    src/icons/icon-180.png src/icons/icon-192.png src/icons/icon-512.png; do
             [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
           done
           echo "all required files present"
+
+      - name: Custom domain intact
+        run: |
+          # Each deploy replaces the whole site, so a missing or malformed CNAME
+          # would silently drop the custom domain on the next push.
+          EXPECTED="tallycalc.org"
+          ACTUAL="$(tr -d '[:space:]' < src/CNAME)"
+          [ "$ACTUAL" = "$EXPECTED" ] || {
+            echo "::error::CNAME is '$ACTUAL', expected '$EXPECTED'"; exit 1; }
+          [ "$(grep -c . src/CNAME)" -eq 1 ] || {
+            echo "::error::CNAME must contain exactly one line"; exit 1; }
+          echo "custom domain: $ACTUAL"
 
       - name: Page JavaScript parses
         run: |
@@ -81,7 +93,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Assemble _site
         run: |
@@ -95,7 +107,11 @@ jobs:
           echo "build id: ${BUILD_ID}"
           ls -R _site
 
+      # enablement: turns Pages on via the API if it isn't already, so a fresh
+      # clone of this repo deploys without a manual trip to Settings
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
