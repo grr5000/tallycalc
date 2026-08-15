@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5f4d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TallyCalc">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Loan amortization schedules and prepayment modeling. Runs entirely on your device.">
+<title>TallyCalc — Amortization &amp; Payoff</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#fff; --panel2:#fafbfc; --ink:#16191d; --muted:#6b7280;
+    --line:#e3e6ea; --line2:#f1f3f5; --accent:#1f5f4d; --accent-soft:#e8f2ef; --accent-soft2:#dcebe6;
+    --good:#1f5f4d; --bad:#a12b2b;
+    --err-bg:#fdecec; --err-line:#f5c2c2; --err-ink:#8a1f1f;
+    --c-principal:#1f5f4d; --c-interest:#c2703d; --c-extra:#2f6f9f; --c-base:#9aa3ad;
+    --c-grid:#eceff2; --c-axisline:#d7dbe0;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#121517; --panel:#1b1f22; --panel2:#22272b; --ink:#e7eaec; --muted:#98a1a9;
+      --line:#2b3136; --line2:#242a2e; --accent:#3f9b80; --accent-soft:#1d332c; --accent-soft2:#244038;
+      --good:#4fb99a; --bad:#e58a8a;
+      --err-bg:#3a2020; --err-line:#6b3535; --err-ink:#f0b8b8;
+      --c-principal:#3f9b80; --c-interest:#d68b52; --c-extra:#5a9ecb; --c-base:#7d8790;
+      --c-grid:#262c31; --c-axisline:#3a4147;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent;
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{background:var(--panel);border-bottom:1px solid var(--line);
+    padding:calc(14px + env(safe-area-inset-top)) 22px 14px}
+  header h1{margin:0;font-size:18px;font-weight:650;letter-spacing:-.01em}
+  header p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+  .wrap{max-width:1240px;margin:0 auto;
+    padding:18px max(22px,env(safe-area-inset-left)) calc(60px + env(safe-area-inset-bottom))}
+  .cols{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+  @media (max-width:960px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:650}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
+  input,select{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;
+    font:inherit;background:var(--panel);color:var(--ink);-webkit-appearance:none;appearance:none}
+  select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px,5px 5px;
+    background-repeat:no-repeat;padding-right:30px}
+  input[type=checkbox]{-webkit-appearance:checkbox;appearance:checkbox}
+  input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+  button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+    padding:8px 12px;cursor:pointer;color:var(--ink);touch-action:manipulation}
+  @media (hover:hover){button:hover{background:var(--panel2)}
+    button.primary:hover{filter:brightness(1.12)}
+    table.sched tbody tr:hover{background:var(--panel2)}
+    tr.haslump:hover{background:var(--accent-soft2)}}
+  button:active{filter:brightness(.94)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;width:100%;padding:12px}
+  button.mini{padding:4px 8px;font-size:12px}
+  .lumps table{width:100%;border-collapse:collapse}
+  .lumps td{padding:3px 3px 3px 0}
+  .lumps td:last-child{width:38px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:16px}
+  .stat{background:var(--panel);padding:12px 14px}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .stat .v{font-size:19px;font-weight:650;margin-top:3px;letter-spacing:-.02em}
+  .stat .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .v.good{color:var(--good)} .v.bad{color:var(--bad)}
+  .tablewrap{max-height:640px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  table.sched{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:12.5px}
+  table.sched th{position:sticky;top:0;background:var(--panel2);border-bottom:1px solid var(--line);
+    padding:9px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+  table.sched th:first-child,table.sched th:nth-child(2){text-align:left}
+  table.sched td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line2);white-space:nowrap}
+  table.sched td:first-child,table.sched td:nth-child(2){text-align:left;color:var(--muted)}
+  tr.yearend td{border-bottom:1px solid var(--line)}
+  tr.haslump{background:var(--accent-soft)}
+  .chartcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 10px;margin-bottom:16px}
+  .charttabs{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding-bottom:2px}
+  .charttabs::-webkit-scrollbar{display:none}
+  .charttabs button{padding:7px 13px;font-size:13px;border-radius:999px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+  .charttabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .canvaswrap{position:relative;height:300px}
+  canvas{width:100%;height:100%;display:block;touch-action:pan-y}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .tip{position:absolute;pointer-events:none;background:#16191d;color:#fff;font-size:11.5px;
+    padding:7px 9px;border-radius:6px;white-space:nowrap;opacity:0;transition:opacity .1s;z-index:5;
+    font-variant-numeric:tabular-nums;line-height:1.5;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .charttitle{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .toolbar .spacer{flex:1}
+  .err{background:var(--err-bg);border:1px solid var(--err-line);color:var(--err-ink);padding:10px 12px;border-radius:8px;margin-bottom:14px}
+  .note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-radius:0;flex:1;padding:9px}
+  .seg button.on{background:var(--accent);color:#fff;font-weight:600}
+  .hidden{display:none}
+
+  /* ---------- mobile ---------- */
+  #mobileTabs{display:none;position:sticky;top:0;z-index:20;gap:6px;padding:8px 0 10px;background:var(--bg)}
+  #mobileTabs button{flex:1;padding:11px;font-size:14px;font-weight:600;color:var(--muted)}
+  #mobileTabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  @media (max-width:760px){
+    header{padding-left:16px;padding-right:16px}
+    header h1{font-size:16px}
+    .wrap{padding:0 max(14px,env(safe-area-inset-left)) calc(30px + env(safe-area-inset-bottom))}
+    #mobileTabs{display:flex}
+    body.m-inputs #paneResults{display:none}
+    body.m-results #paneInputs{display:none}
+    /* iOS zooms any field under 16px on focus */
+    input,select,button{font-size:16px}
+    button.mini{font-size:15px;padding:7px 11px}
+    .card{padding:14px}
+    label{font-size:13px;margin-top:12px}
+    .hint{font-size:12px}
+    .stats{grid-template-columns:1fr 1fr}
+    .stat{padding:11px 12px}
+    .stat .v{font-size:17px}
+    .canvaswrap{height:230px}
+    .charttitle{font-size:12px}
+    .tablewrap{max-height:none}
+    table.sched{font-size:13px}
+    table.sched td,table.sched th{padding:8px 9px}
+    /* keep the essentials on a narrow screen; scroll sideways for the rest */
+    table.sched th:nth-child(3),table.sched td:nth-child(3),
+    table.sched th:nth-child(8),table.sched td:nth-child(8){display:none}
+    .toolbar button{flex:1}
+    button.primary{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom));
+      box-shadow:0 4px 16px rgba(0,0,0,.18)}
+  }
+  @media print{
+    body{background:#fff}
+    header,.card,.toolbar,.note,.charttabs,#mobileTabs{display:none!important}
+    #paneInputs,#paneResults{display:block!important}
+    table.sched th:nth-child(3),table.sched td:nth-child(3),
+    table.sched th:nth-child(8),table.sched td:nth-child(8){display:table-cell!important}
+    .chartcard{break-inside:avoid;page-break-after:always}
+    .canvaswrap{height:340px}
+    .print-head{display:block!important;margin-bottom:12px}
+    .cols{display:block}.wrap{max-width:none;padding:0}
+    .tablewrap{max-height:none;overflow:visible;border:0}
+    table.sched{font-size:9.5px}
+    table.sched th{position:static}
+    .stats{break-inside:avoid}
+  }
+  .print-head{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>TallyCalc</h1>
+  <p>Amortization &amp; payoff modeling. Runs entirely in your browser &mdash; nothing is sent anywhere and nothing is saved.</p>
+</header>
+
+<div class="wrap">
+<div class="print-head" id="printHead"></div>
+
+<div id="mobileTabs">
+  <button id="tabInputs" class="on" onclick="pane('inputs')">Loan details</button>
+  <button id="tabResults" onclick="pane('results')">Results</button>
+</div>
+
+<div class="cols">
+
+  <!-- ============ INPUTS ============ -->
+  <div id="paneInputs">
+    <div class="card">
+      <h2>Loan</h2>
+      <label>Loan type</label>
+      <div class="seg">
+        <button id="btnFixed" class="on" onclick="setMode('fixed')">Fixed-rate</button>
+        <button id="btnCard" onclick="setMode('card')">Credit card</button>
+      </div>
+
+      <label>Nickname (optional)</label>
+      <input id="name" placeholder="e.g. House mortgage">
+
+      <label id="lblPrincipal">Loan amount ($)</label>
+      <input id="principal" type="number" step="0.01" value="350000">
+
+      <label>Annual interest rate (APR %)</label>
+      <input id="apr" type="number" step="0.001" value="6.25">
+
+      <div id="fixedFields">
+        <div class="row">
+          <div>
+            <label>Term</label>
+            <input id="termYears" type="number" step="0.5" value="30">
+          </div>
+          <div>
+            <label>Units</label>
+            <select id="termUnits">
+              <option value="years" selected>Years</option>
+              <option value="months">Months</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="cardFields" class="hidden">
+        <label>Payment rule</label>
+        <select id="cardRule">
+          <option value="fixed">Fixed monthly payment</option>
+          <option value="minpct" selected>Minimum payment (interest + % of balance)</option>
+        </select>
+        <div id="cardFixedWrap" class="hidden">
+          <label>Monthly payment ($)</label>
+          <input id="cardPayment" type="number" step="0.01" value="300">
+        </div>
+        <div id="cardMinWrap">
+          <div class="row">
+            <div>
+              <label>% of balance (+ interest)</label>
+              <input id="minPct" type="number" step="0.1" value="1">
+            </div>
+            <div>
+              <label>Minimum floor ($)</label>
+              <input id="minFloor" type="number" step="1" value="35">
+            </div>
+          </div>
+          <div class="hint">Most US issuers charge that month's interest plus 1&ndash;2% of the balance, with a $25&ndash;$35 floor. The payment shrinks as the balance falls, which is why minimums take so long.</div>
+        </div>
+      </div>
+
+      <label>First payment date</label>
+      <input id="startDate" type="date">
+
+      <label>Extra one-time fees rolled into balance ($)</label>
+      <input id="fees" type="number" step="0.01" value="0">
+      <div class="hint">Adds to the starting balance before interest accrues.</div>
+    </div>
+
+    <div class="card">
+      <h2>Prepayments</h2>
+
+      <label>Extra amount every month ($)</label>
+      <input id="extraMonthly" type="number" step="0.01" value="0">
+
+      <label>Start extra payments at payment #</label>
+      <input id="extraStart" type="number" step="1" min="1" value="1">
+
+      <label style="margin-top:16px">One-time lump sums</label>
+      <div class="lumps"><table id="lumpTable"><tbody></tbody></table></div>
+      <button class="mini" onclick="addLump()" style="margin-top:6px">+ Add lump sum</button>
+      <div class="hint">Applied 100% to principal on that payment number, after that month's interest.</div>
+
+      <label style="margin-top:16px">
+        <input type="checkbox" id="keepPayment" checked style="width:auto;margin-right:6px">
+        Keep the same payment after prepaying (recast off)
+      </label>
+      <div class="hint">On = extra money shortens the loan. Off = payment is recalculated over the remaining original term, lowering your payment instead.</div>
+    </div>
+
+    <button class="primary" onclick="run()">Calculate</button>
+    <div class="note">Interest is computed on the balance at each period using APR &divide; 12. Real lenders may use daily accrual, so results can differ by a few dollars.</div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div id="paneResults">
+    <div id="errBox"></div>
+    <div id="stats" class="stats"></div>
+
+    <div class="chartcard" id="chartCard">
+      <div class="charttabs" id="chartTabs"></div>
+      <p class="charttitle" id="chartTitle"></p>
+      <div class="canvaswrap">
+        <canvas id="chart"></canvas>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="toolbar">
+      <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--ink)">
+        <input type="checkbox" id="annualView" style="width:auto" onchange="render()"> Annual summary
+      </label>
+      <div class="spacer"></div>
+      <button onclick="exportCSV()">Export CSV</button>
+      <button onclick="window.print()">Print / Save PDF</button>
+    </div>
+
+    <div class="tablewrap"><table class="sched" id="sched"></table></div>
+    <div class="note" id="footnote"></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+/* ================= state ================= */
+let MODE = 'fixed';
+let LAST = null;
+
+function $(id){return document.getElementById(id)}
+const isNarrow = () => window.matchMedia('(max-width:760px)').matches;
+function pane(which){
+  document.body.classList.toggle('m-inputs', which==='inputs');
+  document.body.classList.toggle('m-results', which==='results');
+  $('tabInputs').classList.toggle('on', which==='inputs');
+  $('tabResults').classList.toggle('on', which==='results');
+  window.scrollTo(0,0);
+  if(which==='results') setTimeout(drawChart,30); // canvas needs a laid-out parent
+}
+function num(id){const v=parseFloat($(id).value); return isNaN(v)?0:v}
+const money = n => (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0 = n => (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const r2 = n => Math.round(n*100)/100;
+
+/* default first payment = first of next month */
+(function(){
+  const d=new Date(); d.setMonth(d.getMonth()+1); d.setDate(1);
+  $('startDate').value = d.toISOString().slice(0,10);
+})();
+
+function setMode(m){
+  MODE=m;
+  $('btnFixed').classList.toggle('on',m==='fixed');
+  $('btnCard').classList.toggle('on',m==='card');
+  $('fixedFields').classList.toggle('hidden',m!=='fixed');
+  $('cardFields').classList.toggle('hidden',m!=='card');
+  $('lblPrincipal').textContent = m==='card' ? 'Current balance ($)' : 'Loan amount ($)';
+  if(m==='card'){ $('principal').value=$('principal').value==='350000'?'8500':$('principal').value;
+                  $('apr').value = $('apr').value==='6.25'?'24.99':$('apr').value; }
+  cardRuleUI();
+}
+$('cardRule').addEventListener('change',cardRuleUI);
+function cardRuleUI(){
+  const fixed = $('cardRule').value==='fixed';
+  $('cardFixedWrap').classList.toggle('hidden',!fixed);
+  $('cardMinWrap').classList.toggle('hidden',fixed);
+}
+
+/* ================= lump sums ================= */
+function addLump(n,a){
+  const tb=$('lumpTable').querySelector('tbody');
+  const tr=document.createElement('tr');
+  tr.innerHTML = '<td><input type="number" min="1" step="1" placeholder="Payment #" value="'+(n||'')+'"></td>'+
+                 '<td><input type="number" step="0.01" placeholder="Amount $" value="'+(a||'')+'"></td>'+
+                 '<td><button class="mini" onclick="this.closest(\'tr\').remove()">&times;</button></td>';
+  tb.appendChild(tr);
+}
+function getLumps(){
+  const map={};
+  $('lumpTable').querySelectorAll('tbody tr').forEach(tr=>{
+    const i=tr.querySelectorAll('input');
+    const n=parseInt(i[0].value,10), a=parseFloat(i[1].value);
+    if(n>0 && a>0) map[n]=(map[n]||0)+a;
+  });
+  return map;
+}
+
+/* ================= engine ================= */
+function pmt(P,r,n){ return r===0 ? P/n : P*r/(1-Math.pow(1+r,-n)); }
+
+function addMonths(iso,k){
+  if(!iso) return '';
+  const [y,m,d]=iso.split('-').map(Number);
+  const dt=new Date(y,m-1+k,1);
+  const last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate();
+  dt.setDate(Math.min(d,last));
+  return dt.toLocaleDateString('en-US',{month:'short',year:'numeric',day:'numeric'});
+}
+
+/* opts: {balance, rate, nMonths, mode, cardRule, minPct, minFloor, cardPayment,
+          extraMonthly, extraStart, lumps, keepPayment, startDate} */
+function amortize(o){
+  const MAXN = 1200; // 100 years guard
+  let bal = r2(o.balance);
+  let basePay = o.mode==='fixed' ? pmt(bal,o.rate,o.nMonths)
+              : (o.cardRule==='fixed' ? o.cardPayment : 0);
+  let rows=[], totI=0, totP=0, totExtra=0, k=0, capped=false;
+
+  while(bal > 0.005){
+    k++;
+    if(k>MAXN){ capped=true; break; }
+
+    const interest = r2(bal*o.rate);
+
+    // scheduled payment for this period
+    let sched;
+    if(o.mode==='card' && o.cardRule==='minpct'){
+      // standard US issuer rule: interest + a % of principal, or a dollar floor
+      sched = Math.max(interest + bal*(o.minPct/100), o.minFloor);
+    } else {
+      sched = basePay;
+    }
+    sched = r2(sched);
+    // fixed loans: final scheduled payment clears any rounding drift
+    if(o.mode==='fixed' && k>=o.nMonths) sched = r2(bal + interest);
+
+    // negative amortization guard
+    if(sched <= interest && !(o.extraMonthly>0 && k>=o.extraStart)){
+      capped = true;
+      rows.push({k,date:addMonths(o.startDate,k-1),pay:sched,interest,principal:r2(sched-interest),
+                 extra:0,balance:bal,neg:true});
+      break;
+    }
+
+    let extra = 0;
+    if(o.extraMonthly>0 && k>=o.extraStart) extra += o.extraMonthly;
+    if(o.lumps[k]) extra += o.lumps[k];
+
+    let principal = sched - interest;
+    if(principal + extra > bal){          // final payment trim
+      if(principal >= bal){ principal = bal; extra = 0; }
+      else { extra = bal - principal; }
+    }
+
+    const payment = r2(principal + interest);
+    bal = r2(bal - principal - extra);
+    totI += interest; totP += principal + extra; totExtra += extra;
+
+    rows.push({k, date:addMonths(o.startDate,k-1), pay:r2(payment+extra),
+               interest, principal:r2(principal), extra:r2(extra), balance:bal,
+               lump: !!o.lumps[k]});
+
+    // recast: recompute payment over remaining original term
+    if(o.mode==='fixed' && !o.keepPayment && extra>0 && k<o.nMonths){
+      basePay = pmt(bal,o.rate,o.nMonths-k);
+    }
+  }
+  return {rows, totalInterest:r2(totI), totalPaid:r2(totI+totP), totalExtra:r2(totExtra),
+          months:rows.length, basePayment:r2(o.mode==='card'&&o.cardRule==='minpct'?rows[0]?.pay||0:basePay),
+          capped};
+}
+
+/* ================= run ================= */
+function run(){
+  $('errBox').innerHTML='';
+  const bal = num('principal') + num('fees');
+  const apr = num('apr');
+  const rate = apr/100/12;
+  const errs=[];
+  if(bal<=0) errs.push('Enter a balance greater than zero.');
+  if(apr<0) errs.push('Rate cannot be negative.');
+  let nMonths=0;
+  if(MODE==='fixed'){
+    nMonths = $('termUnits').value==='years' ? Math.round(num('termYears')*12) : Math.round(num('termYears'));
+    if(nMonths<1) errs.push('Enter a term of at least 1 month.');
+  }
+  if(MODE==='card' && $('cardRule').value==='fixed' && num('cardPayment')<=0) errs.push('Enter a monthly payment.');
+  if(errs.length){ $('errBox').innerHTML='<div class="err">'+errs.join('<br>')+'</div>';
+                   if(isNarrow()) pane('results'); return; }
+
+  const common = {
+    balance:bal, rate, nMonths, mode:MODE,
+    cardRule:$('cardRule').value, minPct:num('minPct'), minFloor:num('minFloor'),
+    cardPayment:num('cardPayment'),
+    keepPayment:$('keepPayment').checked, startDate:$('startDate').value
+  };
+  const base = amortize({...common, extraMonthly:0, extraStart:1, lumps:{}});
+  const plan = amortize({...common, extraMonthly:num('extraMonthly'),
+                         extraStart:Math.max(1,parseInt($('extraStart').value||1,10)), lumps:getLumps()});
+
+  LAST = {base, plan, name:$('name').value.trim(), apr, bal, nMonths};
+  render();
+  if(isNarrow() && !FIRST) { document.activeElement && document.activeElement.blur(); pane('results'); }
+  FIRST = false;
+}
+let FIRST = true;
+
+function fmtDur(m){
+  const y=Math.floor(m/12), mm=m%12;
+  return (y?y+' yr ':'')+(mm?mm+' mo':(y?'':'0 mo'));
+}
+
+function render(){
+  if(!LAST) return;
+  const {base,plan} = LAST;
+  const hasPre = plan.totalExtra>0;
+  const iSaved = r2(base.totalInterest - plan.totalInterest);
+  const mSaved = base.months - plan.months;
+
+  $('printHead').innerHTML = '<h2 style="margin:0 0 2px">'+(LAST.name||'Amortization schedule')+'</h2>'+
+    '<div style="font-size:11px;color:#555">'+money0(LAST.bal)+' at '+LAST.apr+'% APR &middot; generated '+new Date().toLocaleDateString()+'</div>';
+
+  const cards = [
+    ['Payment', money(plan.rows[0]?plan.rows[0].pay:0), hasPre?'incl. extra, first period':'per month'],
+    ['Payoff', fmtDur(plan.months), plan.rows.length?plan.rows[plan.rows.length-1].date:''],
+    ['Total interest', money(plan.totalInterest), ''],
+    ['Total paid', money(plan.totalPaid), 'principal + interest']
+  ];
+  if(hasPre){
+    cards.push(['Interest saved', money(iSaved), 'vs. no prepayment', 'good']);
+    cards.push(['Time saved', fmtDur(mSaved), 'was '+fmtDur(base.months), 'good']);
+    cards.push(['Extra paid in', money(plan.totalExtra), 'your prepayments']);
+    const ratio = plan.totalExtra>0 ? (iSaved/plan.totalExtra) : 0;
+    cards.push(['Return on extra $', '$'+ratio.toFixed(2), 'interest saved per $1 extra']);
+  }
+  $('stats').innerHTML = cards.map(c=>
+    '<div class="stat"><div class="k">'+c[0]+'</div><div class="v '+(c[3]||'')+'">'+c[1]+'</div>'+
+    (c[2]?'<div class="s">'+c[2]+'</div>':'')+'</div>').join('');
+
+  const annual = $('annualView').checked;
+  const t=$('sched');
+  if(annual){
+    const yrs={};
+    plan.rows.forEach(r=>{ const y=Math.ceil(r.k/12);
+      yrs[y]=yrs[y]||{y,pay:0,interest:0,principal:0,extra:0,balance:0,date:''};
+      const o=yrs[y]; o.pay+=r.pay; o.interest+=r.interest; o.principal+=r.principal; o.extra+=r.extra;
+      o.balance=r.balance; o.date=r.date; });
+    t.innerHTML='<thead><tr><th>Year</th><th>Ends</th><th>Paid</th><th>Interest</th><th>Principal</th><th>Extra</th><th>Balance</th></tr></thead><tbody>'+
+      Object.values(yrs).map(o=>'<tr><td>'+o.y+'</td><td>'+o.date+'</td><td>'+money(o.pay)+'</td><td>'+money(o.interest)+
+      '</td><td>'+money(o.principal)+'</td><td>'+money(o.extra)+'</td><td>'+money(o.balance)+'</td></tr>').join('')+'</tbody>';
+  } else {
+    let ci=0,cp=0;
+    t.innerHTML='<thead><tr><th>#</th><th>Date</th><th>Payment</th><th>Interest</th><th>Principal</th><th>Extra</th><th>Balance</th><th>Cum. interest</th></tr></thead><tbody>'+
+      plan.rows.map(r=>{ ci+=r.interest; cp+=r.principal+r.extra;
+        return '<tr class="'+(r.k%12===0?'yearend ':'')+(r.lump||r.extra>0?'haslump':'')+'"><td>'+r.k+'</td><td>'+r.date+'</td><td>'+
+        money(r.pay)+'</td><td>'+money(r.interest)+'</td><td>'+money(r.principal)+'</td><td>'+
+        (r.extra?money(r.extra):'&mdash;')+'</td><td>'+money(r.balance)+'</td><td>'+money(r2(ci))+'</td></tr>';
+      }).join('')+'</tbody>';
+  }
+
+  let fn='';
+  if(plan.capped) fn='<span style="color:#a12b2b"><b>Warning:</b> this payment does not cover the interest charged, so the balance never pays off. Increase the payment or reduce the rate.</span>';
+  else if(hasPre) fn='Highlighted rows include a prepayment. Baseline (no prepayment): '+fmtDur(base.months)+', '+money(base.totalInterest)+' interest.';
+  $('footnote').innerHTML=fn;
+
+  $('chartCard').classList.toggle('hidden', plan.capped);
+  if(!plan.capped){ HOVER=null; chartTabs(); drawChart(); }
+}
+
+/* ================= charts ================= */
+function chartColors(){
+  const s=getComputedStyle(document.documentElement);
+  const v=(n,f)=>(s.getPropertyValue(n)||'').trim()||f;
+  return {principal:v('--c-principal','#1f5f4d'), interest:v('--c-interest','#c2703d'),
+          extra:v('--c-extra','#2f6f9f'), base:v('--c-base','#9aa3ad'),
+          grid:v('--c-grid','#eceff2'), axis:v('--muted','#6b7280'), axisline:v('--c-axisline','#d7dbe0')};
+}
+function tint(hex,a){
+  const h=hex.replace('#',''); const n=h.length===3?h.split('').map(c=>c+c).join(''):h;
+  const i=parseInt(n,16);
+  return 'rgba('+((i>>16)&255)+','+((i>>8)&255)+','+(i&255)+','+a+')';
+}
+const VIEWS = [
+  {id:'balance',  label:'Balance',          title:'Remaining balance over time. The gap between the two lines is the debt your prepayments erased.'},
+  {id:'split',    label:'Payment split',    title:'Where each monthly payment goes. Interest dominates early on and shrinks as principal builds.'},
+  {id:'cumint',   label:'Cumulative interest', title:'Total interest paid so far. The shaded gap is your running savings.'},
+  {id:'yearly',   label:'Yearly breakdown', title:'Interest vs. principal paid each calendar year of the loan.'}
+];
+let VIEW='balance';
+let HOVER=null;
+
+function chartTabs(){
+  $('chartTabs').innerHTML = VIEWS.map(v=>
+    '<button class="'+(v.id===VIEW?'on':'')+'" onclick="setView(\''+v.id+'\')">'+v.label+'</button>').join('');
+}
+function setView(v){ VIEW=v; chartTabs(); drawChart(); }
+
+function ax(n){ // compact axis money
+  const a=Math.abs(n);
+  if(a>=1e6) return '$'+(n/1e6).toFixed(a>=1e7?0:1)+'M';
+  if(a>=1e3) return '$'+(n/1e3).toFixed(a>=1e4?0:1)+'k';
+  return '$'+n.toFixed(0);
+}
+function niceMax(v){
+  if(v<=0) return 1;
+  const p=Math.pow(10,Math.floor(Math.log10(v))), f=v/p;
+  return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p;
+}
+
+function drawChart(){
+  if(!LAST){ return; }
+  const C=chartColors();
+  const cv=$('chart'), wrap=cv.parentElement;
+  const dpr=Math.min(window.devicePixelRatio||1, 3);
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  if(!W||!H) return;                       // hidden pane: nothing to draw yet
+  const small = W < 520;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+
+  const v=VIEWS.find(x=>x.id===VIEW);
+  $('chartTitle').textContent=v.title;
+
+  const P={l:small?44:60, r:small?8:14, t:12, b:small?22:26};
+  const pw=W-P.l-P.r, ph=H-P.t-P.b;
+  const plan=LAST.plan, base=LAST.base;
+  const hasPre=plan.totalExtra>0;
+
+  // ---- build series
+  let series=[], n=0, xLab=[], bars=null, yMax=0, legend=[];
+  const cum=(rows,f)=>{let s=0;return rows.map(r=>s=r2(s+f(r)));};
+
+  if(VIEW==='balance'){
+    n=Math.max(plan.months, hasPre?base.months:0);
+    series=[{name:'With prepayment',color:C.principal,fill:tint(C.principal,.12),data:plan.rows.map(r=>r.balance)}];
+    if(hasPre) series.unshift({name:'No prepayment',color:C.base,dash:[5,4],data:base.rows.map(r=>r.balance)});
+    yMax=niceMax(LAST.bal);
+  } else if(VIEW==='split'){
+    n=plan.months;
+    series=[{name:'Interest',color:C.interest,stack:true,data:plan.rows.map(r=>r.interest)},
+            {name:'Principal',color:C.principal,stack:true,data:plan.rows.map(r=>r.principal)}];
+    if(hasPre) series.push({name:'Extra',color:C.extra,stack:true,data:plan.rows.map(r=>r.extra)});
+    yMax=niceMax(Math.max(...plan.rows.map(r=>r.pay))*1.05);
+  } else if(VIEW==='cumint'){
+    n=Math.max(plan.months, hasPre?base.months:0);
+    series=[{name:'With prepayment',color:C.principal,fill:tint(C.principal,.12),data:cum(plan.rows,r=>r.interest)}];
+    if(hasPre) series.unshift({name:'No prepayment',color:C.base,dash:[5,4],fill:tint(C.interest,.12),data:cum(base.rows,r=>r.interest)});
+    yMax=niceMax(Math.max(base.totalInterest,plan.totalInterest));
+  } else { // yearly
+    const yr={};
+    plan.rows.forEach(r=>{const y=Math.ceil(r.k/12); yr[y]=yr[y]||{i:0,p:0,e:0}; yr[y].i+=r.interest; yr[y].p+=r.principal; yr[y].e+=r.extra;});
+    const keys=Object.keys(yr).map(Number).sort((a,b)=>a-b);
+    bars=keys.map(k=>({label:'Yr '+k, seg:[{v:yr[k].i,c:C.interest,n:'Interest'},{v:yr[k].p,c:C.principal,n:'Principal'},{v:yr[k].e,c:C.extra,n:'Extra'}]}));
+    n=bars.length;
+    yMax=niceMax(Math.max(...bars.map(b=>b.seg.reduce((s,x)=>s+x.v,0))));
+    legend=[{n:'Interest',c:C.interest},{n:'Principal',c:C.principal}];
+    if(hasPre) legend.push({n:'Extra',c:C.extra});
+  }
+  // pad shorter series (a loan paid off early stays flat afterward)
+  if(!bars && series[0] && !series[0].stack)
+    series.forEach(s=>{ while(s.data.length<n) s.data.push(s.data.length?s.data[s.data.length-1]:0); });
+  if(!legend.length) legend=series.map(s=>({n:s.name,c:s.color}));
+  $('legend').innerHTML=legend.map(l=>'<span><i class="swatch" style="background:'+l.c+'"></i>'+l.n+'</span>').join('');
+
+  const Y = val => P.t + ph - (val/yMax)*ph;
+  const X = i => n<=1 ? P.l+pw/2 : P.l + (i/(n-1))*pw;
+
+  // ---- grid + y labels
+  g.font=(small?10:11)+'px -apple-system,Segoe UI,Roboto,sans-serif'; g.textBaseline='middle';
+  for(let s=0;s<=4;s++){
+    const val=yMax*s/4, y=Math.round(Y(val))+.5;
+    g.strokeStyle=C.grid; g.lineWidth=1; g.beginPath(); g.moveTo(P.l,y); g.lineTo(W-P.r,y); g.stroke();
+    g.fillStyle=C.axis; g.textAlign='right'; g.fillText(ax(val),P.l-8,y);
+  }
+
+  // ---- x labels
+  g.textAlign='center'; g.textBaseline='top'; g.fillStyle=C.axis;
+  if(bars){
+    const step=Math.ceil(n/(small?5:12));
+    bars.forEach((b,i)=>{ if(i%step===0||i===n-1) g.fillText(b.label, X(i), P.t+ph+7); });
+  } else {
+    const yrs=Math.ceil(n/12), step=Math.max(1,Math.ceil(yrs/(small?5:10)));
+    for(let y=0;y<=yrs;y+=step){ const i=Math.min(n-1,y*12); g.fillText(y===0?'Start':'Yr '+y, X(i), P.t+ph+7); }
+  }
+
+  // ---- plot
+  if(bars){
+    const bw=Math.max(2, pw/n*0.62), half=bw/2;
+    bars.forEach((b,i)=>{
+      let acc=0; const x=X(i)-half;
+      b.seg.forEach(s=>{ if(s.v<=0) return;
+        const y0=Y(acc), y1=Y(acc+s.v);
+        g.fillStyle=s.c; g.fillRect(x,y1,bw,Math.max(1,y0-y1)); acc+=s.v; });
+    });
+  } else {
+    const stacked=series[0]&&series[0].stack;
+    if(stacked){
+      let baseArr=new Array(n).fill(0);
+      series.forEach(s=>{
+        g.beginPath();
+        for(let i=0;i<n;i++){ const val=(s.data[i]||0)+baseArr[i]; i?g.lineTo(X(i),Y(val)):g.moveTo(X(i),Y(val)); }
+        for(let i=n-1;i>=0;i--) g.lineTo(X(i),Y(baseArr[i]));
+        g.closePath(); g.fillStyle=s.color; g.globalAlpha=.85; g.fill(); g.globalAlpha=1;
+        for(let i=0;i<n;i++) baseArr[i]+=(s.data[i]||0);
+      });
+    } else {
+      series.forEach(s=>{
+        const len=s.data.length;
+        if(s.fill){
+          g.beginPath(); g.moveTo(X(0),Y(s.data[0]));
+          for(let i=1;i<len;i++) g.lineTo(X(i),Y(s.data[i]));
+          g.lineTo(X(len-1),Y(0)); g.lineTo(X(0),Y(0)); g.closePath();
+          g.fillStyle=s.fill; g.fill();
+        }
+        g.beginPath(); g.lineWidth=2; g.strokeStyle=s.color;
+        g.setLineDash(s.dash||[]);
+        for(let i=0;i<len;i++) i?g.lineTo(X(i),Y(s.data[i])):g.moveTo(X(i),Y(s.data[i]));
+        g.stroke(); g.setLineDash([]);
+      });
+    }
+  }
+
+  // ---- axes
+  g.strokeStyle=C.axisline; g.lineWidth=1; g.beginPath();
+  g.moveTo(P.l+.5,P.t); g.lineTo(P.l+.5,P.t+ph+.5); g.lineTo(W-P.r,P.t+ph+.5); g.stroke();
+
+  // ---- hover marker
+  if(HOVER!==null && HOVER>=0 && HOVER<n && !bars){
+    const x=X(HOVER);
+    g.strokeStyle=C.axisline; g.setLineDash([3,3]); g.beginPath();
+    g.moveTo(x,P.t); g.lineTo(x,P.t+ph); g.stroke(); g.setLineDash([]);
+    if(!series[0].stack) series.forEach(s=>{ if(s.data[HOVER]===undefined) return;
+      g.fillStyle=s.color; g.beginPath(); g.arc(x,Y(s.data[HOVER]),4,0,7); g.fill();
+      g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel')||'#fff';
+      g.lineWidth=2; g.stroke(); });
+  }
+  cv._meta={n,X,P,pw,ph,bars,series};
+}
+
+/* hover / touch tooltip */
+(function(){
+  const cv=$('chart'), tip=$('tip');
+  let hideT=null;
+  function track(clientX,clientY,touch){
+    const m=cv._meta; if(!m||!LAST){return}
+    const rect=cv.getBoundingClientRect();
+    const px=clientX-rect.left, py=clientY-rect.top;
+    let i=Math.round((px-m.P.l)/(m.pw||1)*(m.n-1));
+    i=Math.max(0,Math.min(m.n-1,i));
+    if(px<m.P.l-10||px>rect.width-m.P.r+10){ tip.style.opacity=0; HOVER=null; drawChart(); return; }
+    HOVER=i;
+    let html='';
+    if(m.bars){
+      const b=m.bars[i]; const tot=b.seg.reduce((s,x)=>s+x.v,0);
+      html='<b>'+b.label+'</b>'+b.seg.filter(s=>s.v>0).map(s=>'<br>'+s.n+': '+money(r2(s.v))).join('')+
+           '<br>Total: '+money(r2(tot));
+    } else {
+      const r=LAST.plan.rows[i];
+      html='<b>Payment '+(i+1)+(r?' &middot; '+r.date:'')+'</b>';
+      m.series.forEach(s=>{ if(s.data[i]!==undefined) html+='<br>'+s.name+': '+money(r2(s.data[i])); });
+      if(VIEW==='cumint'&&m.series.length>1&&m.series[0].data[i]!==undefined&&m.series[1].data[i]!==undefined)
+        html+='<br>Saved so far: '+money(r2(m.series[0].data[i]-m.series[1].data[i]));
+    }
+    tip.innerHTML=html; tip.style.opacity=1;
+    const tw=tip.offsetWidth, x=m.X(i);
+    tip.style.left=Math.max(4,Math.min(rect.width-tw-4,x-tw/2))+'px';
+    const ty = touch ? 6 : Math.max(4,py-tip.offsetHeight-12);   // finger would cover it
+    tip.style.top=ty+'px';
+    drawChart();
+  }
+  function hide(){ tip.style.opacity=0; HOVER=null; drawChart(); }
+
+  cv.addEventListener('mousemove',e=>track(e.clientX,e.clientY,false));
+  cv.addEventListener('mouseleave',hide);
+  const onTouch=e=>{ const t=e.touches[0]; if(!t) return;
+    clearTimeout(hideT); track(t.clientX,t.clientY,true); };
+  cv.addEventListener('touchstart',onTouch,{passive:true});
+  cv.addEventListener('touchmove',onTouch,{passive:true});
+  cv.addEventListener('touchend',()=>{ hideT=setTimeout(hide,2500); },{passive:true});
+
+  let rt;
+  const redraw=()=>{clearTimeout(rt); rt=setTimeout(drawChart,140)};
+  window.addEventListener('resize',redraw);
+  window.addEventListener('orientationchange',redraw);
+  if(window.matchMedia) try{ window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',redraw); }catch(e){}
+})();
+
+/* ================= CSV ================= */
+function exportCSV(){
+  if(!LAST){ alert('Calculate first.'); return; }
+  const p=LAST.plan, b=LAST.base;
+  let out=[];
+  out.push(['Loan',LAST.name||'Untitled']);
+  out.push(['Starting balance',LAST.bal]);
+  out.push(['APR %',LAST.apr]);
+  out.push(['Months to payoff',p.months]);
+  out.push(['Total interest',p.totalInterest]);
+  out.push(['Total paid',p.totalPaid]);
+  out.push(['Total prepaid',p.totalExtra]);
+  out.push(['Baseline months',b.months]);
+  out.push(['Baseline interest',b.totalInterest]);
+  out.push(['Interest saved',r2(b.totalInterest-p.totalInterest)]);
+  out.push([]);
+  out.push(['#','Date','Payment','Interest','Principal','Extra','Balance','Cumulative interest']);
+  let ci=0;
+  p.rows.forEach(r=>{ ci=r2(ci+r.interest);
+    out.push([r.k,r.date,r.pay,r.interest,r.principal,r.extra,r.balance,ci]); });
+  const csv=out.map(row=>row.map(c=>{
+    const s=String(c==null?'':c);
+    return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(',')).join('\n');
+  const fname=(LAST.name||'amortization').replace(/[^\w-]+/g,'_')+'.csv';
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  if('download' in a){
+    const url=URL.createObjectURL(blob);
+    a.href=url; a.download=fname; a.rel='noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  } else { // very old iOS Safari: show it so it can be copied or shared
+    window.open('data:text/csv;charset=utf-8,'+encodeURIComponent(csv));
+  }
+}
+
+/* ================= init ================= */
+document.body.classList.add('m-inputs');
+addLump();
+run();
+// redraw once fonts/layout settle (iOS reports 0-height canvas on first paint sometimes)
+window.addEventListener('load',()=>setTimeout(drawChart,60));
+
+/* offline support — only over https/localhost; silently skipped on file:// */
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

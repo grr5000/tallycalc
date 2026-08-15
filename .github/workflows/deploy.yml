@@ -1,0 +1,113 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GITHUB_TOKEN permissions the Pages deployment needs
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; don't cancel a run that is mid-publish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Required files present
+        run: |
+          set -e
+          for f in src/index.html src/manifest.webmanifest src/sw.js \
+                   src/icons/icon-180.png src/icons/icon-192.png src/icons/icon-512.png; do
+            [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
+          done
+          echo "all required files present"
+
+      - name: Page JavaScript parses
+        run: |
+          node -e "
+            const fs = require('fs');
+            const html = fs.readFileSync('src/index.html', 'utf8');
+            const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];
+            if (!blocks.length) { console.error('no inline script found'); process.exit(1); }
+            blocks.forEach((m, i) => {
+              try { new Function(m[1]); }
+              catch (e) { console.error('::error::script block ' + i + ': ' + e.message); process.exit(1); }
+            });
+            console.log('parsed ' + blocks.length + ' script block(s)');
+          "
+
+      - name: Service worker parses
+        run: node --check src/sw.js
+
+      - name: Manifest is valid JSON
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('src/manifest.webmanifest', 'utf8'));
+            for (const k of ['name','start_url','display','icons']) {
+              if (!m[k]) { console.error('::error::manifest missing ' + k); process.exit(1); }
+            }
+            if (!String(m.start_url).startsWith('.')) {
+              console.error('::error::start_url must be relative for a project page'); process.exit(1);
+            }
+            console.log('manifest ok:', m.name);
+          "
+
+      - name: No absolute-root asset paths
+        run: |
+          # A project page lives at /<repo>/, so href="/x" or src="/x" would 404.
+          if grep -nE '(href|src)="/[^/]' src/index.html; then
+            echo "::error::absolute paths found — use ./relative paths on a project page"
+            exit 1
+          fi
+          echo "paths are relative"
+
+  build:
+    name: Build
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble _site
+        run: |
+          set -e
+          mkdir -p _site
+          cp -r src/. _site/
+          touch _site/.nojekyll
+          # Bust the offline cache on every deploy
+          BUILD_ID="${GITHUB_SHA::7}-$(date -u +%Y%m%d%H%M%S)"
+          sed -i "s/__BUILD_ID__/${BUILD_ID}/" _site/sw.js
+          echo "build id: ${BUILD_ID}"
+          ls -R _site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
