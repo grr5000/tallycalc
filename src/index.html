@@ -162,7 +162,7 @@
 <body>
 <header>
   <h1>TallyCalc</h1>
-  <p>Amortization &amp; payoff modeling. Runs entirely in your browser &mdash; nothing is sent anywhere and nothing is saved.</p>
+  <p>Amortization &amp; payoff modeling. Your loan figures are computed in your browser and never leave your device &mdash; nothing is uploaded, nothing is stored.</p>
 </header>
 
 <div class="wrap">
@@ -795,6 +795,23 @@ addLump();
 run();
 // redraw once fonts/layout settle (iOS reports 0-height canvas on first paint sometimes)
 window.addEventListener('load',()=>setTimeout(drawChart,60));
+
+/* ================= analytics =================
+   Cloudflare Web Analytics: cookieless, no personal data, no consent banner
+   required. It records that a page was viewed — never anything you type here.
+   Paste the token from dash.cloudflare.com -> Web Analytics below; until then
+   this block does nothing at all. */
+(function(){
+  const CF_TOKEN = 'c55567cdeddb490b85c82a1bf16ec60b';
+  // 32-char hex Cloudflare token; short-circuit if it's missing or clearly a placeholder
+  if(!/^[0-9a-f]{32}$/i.test(CF_TOKEN)) return;
+  if(location.protocol !== 'https:') return;                     // skip local dev
+  const s = document.createElement('script');
+  s.defer = true;
+  s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  s.setAttribute('data-cf-beacon', JSON.stringify({token: CF_TOKEN}));
+  document.head.appendChild(s);
+})();
 
 /* offline support — only over https/localhost; silently skipped on file:// */
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){

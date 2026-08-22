@@ -79,6 +79,15 @@ jobs:
             console.log('manifest ok:', m.name);
           "
 
+      - name: Analytics token configured
+        run: |
+          # A warning, not a failure — the site works fine untracked.
+          if grep -qE "CF_TOKEN = '[0-9a-fA-F]{32}'" src/index.html; then
+            echo "analytics token looks valid"
+          else
+            echo "::warning::Cloudflare Analytics token missing or malformed — no visits recorded"
+          fi
+
       - name: No absolute-root asset paths
         run: |
           # A project page lives at /<repo>/, so href="/x" or src="/x" would 404.

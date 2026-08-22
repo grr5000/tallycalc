@@ -17,6 +17,15 @@ analytics, no storage — every figure is computed in the browser and nothing le
 
 Works offline once loaded, and installs to the iOS/Android home screen as a standalone app.
 
+## Privacy
+
+Every figure you enter — balances, rates, prepayments — is computed in your browser and never
+transmitted. There is no account, no database, and no storage; reloading the page clears everything.
+
+The site uses [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) to count page
+views. It is cookieless, collects no personal data, and never sees anything you type into the
+calculator. Blocking it costs you nothing.
+
 ## Repo layout
 
 ```

@@ -327,7 +327,35 @@ floor — which pays off in a realistic 255 months.
 
 ---
 
-## 10. Ideas if picking this back up
+## 10. Analytics
+
+GitHub Pages provides **no** server logs and no visitor statistics — before this was added, every
+visit was simply unrecorded, with no way to recover the history. (Repo Insights → Traffic counts
+views of the github.com repo page, not the site.)
+
+**What's installed:** Cloudflare Web Analytics, added as a small block near the end of the inline
+script in `index.html`. It is cookieless, needs no consent banner, and records page views only —
+it never sees anything entered into the calculator.
+
+**Setup:** dash.cloudflare.com → Web Analytics → Add a site → `tallycalc.org` → copy the token →
+paste it over `PASTE_TOKEN_HERE` in `index.html`. The block is a no-op until a real token is
+present, and it skips non-HTTPS origins so local testing never pollutes the numbers. CI emits a
+warning (not a failure) while the placeholder is still there.
+
+**Dashboard:** dash.cloudflare.com → Web Analytics. Free tier caps most reports at the top 15
+entries per category.
+
+**Expect undercounting.** Ad blockers and Safari's tracking prevention block the beacon, and an
+installed PWA opened offline never phones home. Treat the number as a floor, not a census.
+
+**Privacy wording:** the header deliberately says *"your loan figures... never leave your device"*
+rather than the original *"nothing is sent anywhere."* The narrower claim is the one that stays
+true with analytics present. If analytics is ever removed, the broader wording can come back.
+There's a matching Privacy section in `README.md`.
+
+---
+
+## 11. Ideas if picking this back up
 
 - **Save/load loans** — deliberately omitted (chose single-session). `localStorage` would be the
   obvious add; scope it to the origin and note it makes the page no longer stateless.
@@ -340,7 +368,7 @@ floor — which pays off in a realistic 255 months.
 
 ---
 
-## 11. If something breaks
+## 12. If something breaks
 
 1. **Site shows the README** → Pages source flipped to branch mode. §9.
 2. **Custom domain stopped working** → check `src/CNAME` still exists and Settings → Pages still
